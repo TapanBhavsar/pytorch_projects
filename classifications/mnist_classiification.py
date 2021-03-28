@@ -14,7 +14,7 @@ train_dataset = torchvision.datasets.MNIST('.', train=True, download=True,
                              transform=torchvision.transforms.Compose([
                                torchvision.transforms.ToTensor(),
                                torchvision.transforms.Normalize(
-                                 (0.1307,), (0.3081,))
+                                 (0.0,), (1,))
                                ]))
 
 #load test data and labels
@@ -22,16 +22,12 @@ test_dataset = torchvision.datasets.MNIST('.', train=False, download=True,
                              transform=torchvision.transforms.Compose([
                                torchvision.transforms.ToTensor(),
                                torchvision.transforms.Normalize(
-                                 (0.1307,), (0.3081,))
+                                 (0.0,), (1,))
                              ]))
 
-
 #create dataloader for train and test data to suffle data and create batches
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=256, shuffle=True)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000, shuffle=True)
-
-print(len(train_loader))
-print(len(test_loader))
 
 ###################################
 ##### Create torch model here #####
@@ -45,7 +41,7 @@ import torch.optim as optim
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        # Input : 32 x 32 x 3
+        # Input : 28 x 28 x 1
         self.conv1 = nn.Conv2d(1, 16, kernel_size=3)
         # Input(with maxpool2d) : 13 x 13 x 16
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3)
@@ -65,16 +61,16 @@ class Net(nn.Module):
 
 # initialize back propagation parameters
 learning_rate = 0.01
-momentum = 0.9
 network = Net()
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(network.parameters(), lr=learning_rate, momentum=momentum)
+optimizer = optim.Adam(network.parameters(), lr=learning_rate)
 
 ######################################
 ##### Train the model #####
 ######################################
 
-for epoch in range(10):
+epochs = 10
+for epoch in range(epochs):
   epoch_loss = 0
   for batch_idx, (data, target) in enumerate(train_loader):
       # zero the gradient parameters because if it is not zerop the previous gradient accumulates with current gradient.
@@ -89,12 +85,51 @@ for epoch in range(10):
       optimizer.step()
 
       epoch_loss += loss.item()
-      if (batch_idx % 100 ==0 or batch_idx == 937):
-        print("epoch: {}, batch size: {}, loss: {}".format(epoch+1, batch_idx + 1, epoch_loss / len(train_loader)))
+      if (batch_idx % 100 ==0):
+        print("epoch: {}, batch size: {}, loss: {}".format(epoch+1, batch_idx + 1, epoch_loss / len(data)))
         epoch_loss = 0
 
 
-############################################
-##### Save the trained model #####
-############################################
+################################################
+##### Save the entire/weight trained model #####
+################################################
 
+MODEL_PATH = "trained_model.pt"
+# torch.save(network.state_dict(), MODEL_PATH)  # save trained weights only
+torch.save(network, MODEL_PATH)  # save entire model with architecture as well
+
+#################################################################
+##### Load the model entirely as well as using only weights #####
+#################################################################
+
+MODEL_PATH = "trained_model.pt"
+
+# load with weight saved model only.
+'''
+model = Net()
+model.load_state_dict(torch.load(MODEL_PATH))
+model.eval()
+'''
+
+# load the entire model.
+model = torch.load(MODEL_PATH)
+model.eval()  # model.eval() must be called to set dropout and batch normalization layers to evaluation mode before running inference. Failing to do this will yield inconsistent inference results.
+
+###############################################
+##### Test the loaded model #####
+##############################################
+correct = 0
+total = 0
+with torch.no_grad():
+    for data in test_loader:
+        images, labels = data
+        outputs = model(images)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print('Accuracy of the network on the 10000 test images: {} %'.format(100 * correct / total))
+
+###########################################
+##### Predict a single image #####
+###########################################

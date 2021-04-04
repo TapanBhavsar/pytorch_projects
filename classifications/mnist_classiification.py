@@ -1,5 +1,6 @@
 import torch
 import torchvision
+import numpy as np
 
 # check GPU availability
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -94,9 +95,15 @@ for epoch in range(epochs):
 ##### Save the entire/weight trained model #####
 ################################################
 
+
 MODEL_PATH = "trained_model.pt"
-# torch.save(network.state_dict(), MODEL_PATH)  # save trained weights only
-torch.save(network, MODEL_PATH)  # save entire model with architecture as well
+torch.save(network.state_dict(), MODEL_PATH)  # save trained weights only
+'''
+checkpoint = {'model': Net(),
+          'state_dict': network.state_dict(),
+          'optimizer' : optimizer.state_dict()}
+torch.save(checkpoint, MODEL_PATH)  # save entire model with architecture as well
+'''
 
 #################################################################
 ##### Load the model entirely as well as using only weights #####
@@ -105,15 +112,17 @@ torch.save(network, MODEL_PATH)  # save entire model with architecture as well
 MODEL_PATH = "trained_model.pt"
 
 # load with weight saved model only.
-'''
 model = Net()
 model.load_state_dict(torch.load(MODEL_PATH))
 model.eval()
-'''
 
 # load the entire model.
-model = torch.load(MODEL_PATH)
+'''
+checkpoint = torch.load(MODEL_PATH)
+model = checkpoint['model']
+model.load_state_dict(checkpoint['state_dict'])
 model.eval()  # model.eval() must be called to set dropout and batch normalization layers to evaluation mode before running inference. Failing to do this will yield inconsistent inference results.
+'''
 
 ###############################################
 ##### Test the loaded model #####
@@ -133,3 +142,14 @@ print('Accuracy of the network on the 10000 test images: {} %'.format(100 * corr
 ###########################################
 ##### Predict a single image #####
 ###########################################
+
+from PIL import Image
+img_path = "test.png"
+image = Image.open(img_path).convert('RGB')
+transform = torchvision.transforms.Compose([torchvision.transforms.Resize((28,28)), 
+                                    torchvision.transforms.ToTensor(), 
+                                    torchvision.transforms.Normalize((0.0,),(1,))])
+input_image = transform(image)[:1,:,:].unsqueeze(0)
+model_pred = model.cpu()
+output = model_pred(input_image)
+print(np.argmax(output.squeeze(0).detach().numpy()))
